@@ -1,197 +1,160 @@
-## 一、作品名称
+# Face-Control (脸控语音一体化无障碍控制系统)
 
-**脸控语音一体化无障碍控制系统**
+<div align="center">
 
----
+**Accessible Hands-Free Computer Control via Facial Pose, Expression & Offline Whisper Voice**  
+*Control the mouse cursor, click buttons, and dictate text using standard webcams and microphones.*
 
-## 二、作品概述
+[Key Capabilities](#key-capabilities) • [Cursor Control Mechanics](#cursor-tracking--interaction-mechanics) • [Voice & Whisper Engine](#voice-control--whisper-stt) • [Technical Architecture](#technical-architecture) • [Getting Started](#getting-started) • [Configuration Guide](#configuration-guide) • [Accessibility Innovations](#accessibility-design-principles)
 
-本作品是一套基于 **人脸姿态 + 表情控制 + 语音识别** 的无障碍电脑交互系统，用于帮助上肢不便、手部操作受限的用户完成日常电脑操作，以及参与简单的游戏互动。
-
-系统通过普通摄像头实时捕捉用户脸部特征点，利用鼻尖位置和头部倾角来控制鼠标移动；通过识别嘴巴张开时间长短来触发鼠标左键和右键点击；同时集成 Whisper 语音识别，实现中英文语音输入文字和语音控制“暂停/继续”。
-
-整套系统只依赖普通 USB 摄像头和麦克风，不需要昂贵的眼控仪或专用硬件，适合在普通 PC 上推广使用。
+</div>
 
 ---
 
-## 三、目标用户与设计初衷
+## Overview
 
-**上肢行动不便的用户**
+**Face-Control** is a hands-free accessibility system engineered for individuals with upper-limb mobility impairments, spinal injuries, or motor limitations. By converting facial pose geometry and vocal commands into standard system inputs, the platform enables complete, autonomous computer interaction using standard commodity hardware—requiring only an ordinary USB webcam and microphone without specialized eye-trackers or costly assistive equipment.
 
-   * 例如脊髓损伤、肌肉萎缩、脑瘫等群体，手无法长时间精细操作鼠标键盘。
-
-
-设计初衷是：**用最低成本的设备、最低门槛的操作方式，让更多人可以“用脸和声音”自由地控制电脑。**
+The application leverages **MediaPipe Face Mesh** to track 468 3D facial landmarks in real time, mapping nose-tip coordinates and head rotations to cursor trajectories. Mouth-aperture temporal analysis distinguishes between left and right mouse clicks, while local **OpenAI Whisper** models transcribe speech into text and process hands-free operational commands.
 
 ---
 
-## 四、核心功能介绍
+## Key Capabilities
 
-### 1. 脸控鼠标移动
-
-* 使用 MediaPipe Face Mesh 获取 468 个脸部关键点。
-* 选取 **鼻尖坐标** 作为鼠标控制点，通过映射到屏幕坐标控制鼠标位置。
-* 鼠标移动范围支持增益放大：
-  即使用户只在摄像头画面的中间区域轻微移动头部，也可以覆盖整个屏幕，避免为了移动到屏幕角落而不得不大幅度点头。
-
-**特色：可校准的“舒适姿势”居中**
-
-* 用户可以在任意一个**自己觉得最自然、最舒服的头部姿势**下，点击 UI 中的“**设置当前头部姿势为屏幕中心**”按钮。
-* 系统会将这一帧检测到的鼻子位置记为 `center_x, center_y`，以后只要回到这个姿势，鼠标就会自动位于屏幕中央。
-* 鼠标移动是**相对这一姿势**来计算偏移，更符合人体自然坐姿，而不是强制要求用户正对摄像头。
-
-### 2. 嘴巴张合控制鼠标点击
-
-通过嘴唇与下巴之间的距离比例计算“嘴巴张开程度”：
-
-* **短时间张嘴（例如 0.1～2 秒以内的一次张合） → 左键单击**
-  用于普通点击操作、游戏中简单选择。
-* **长时间持续张嘴（连续张嘴 ≥ 2 秒） → 右键单击**
-  用于菜单呼出、特殊操作，避免用户误操作频繁右击。
-
-系统内部记录每一次“张嘴开始时间”，并根据持续时间智能区分左键还是右键，同时设置了最小间隔时间来防止多次快速误触发。
-
-### 3. 可调灵敏度与移动放大系数
-
-* **灵敏度（滤波 alpha）**：
-  使用一阶低通“阻尼滤波器”平滑鼠标位置，减少抖动。
-
-  * 支持从 **0.001 到 0.99** 的范围调节：
-
-    * 越小越灵敏，鼠标更跟手但略抖；
-    * 越大越平滑，适合手部抖动较大的用户。
-  * 提供 **滑条 + 文本输入** 双方式调整，便于快速尝试不同参数。
-
-* **鼠标移动增益（gain）**：
-  鼻尖相对“居中姿势”的偏移量会乘以一个放大系数，再映射到屏幕。
-  保证在头部小范围运动时，也能覆盖整块屏幕。
-
-### 4. 语音输入（Whisper STT）与指令控制
-
-集成 OpenAI Whisper 模型，实现**离线语音识别**：
-
-1. **支持多模型选择：**
-
-   * 内置：`tiny`, `base`, `small`, `medium`
-   * 程序启动后会在后台预先下载 `medium` 模型，提高以后切换时的速度。
-
-2. **STT 语言可选：中文 / English**
-
-   * UI 语言与识别语言同步：
-     切换到中文时，界面为中文，语音识别指定 language="zh"；
-     切到英文时，界面为英文，语音识别指定 language="en"。
-   * 只识别选定语言，避免中英混杂导致误识别。
-
-3. **语音文本显示与自动输入**
-
-   * 识别出的文本会 **实时显示在右侧文本框** 中，便于用户回看。
-   * 同时通过剪贴板或键盘模拟方式，将识别结果“打字”到当前光标位置，实现任何应用中的语音输入。
-
-4. **语音控制“暂停 / 继续”**
-
-   * 中文指令：
-
-     * 说“**暂停** / **停止**” → 暂停面部鼠标控制
-     * 说“**开始** / **继续**” → 恢复面部鼠标控制
-   * 英文指令：
-
-     * 说 “**pause / stop**” → 暂停
-     * 说 “**resume / start**” → 继续
-
-5. **显式状态显示**
-
-   * UI 显示 “**正在语音识别…**” 或 “**等待说话**”，提示当前系统是否在接收有效语音。
-
-### 5. 麦克风设备选择与语音门限（去噪）
-
-1. **麦克风选择：**
-
-   * 自动枚举系统中所有具有输入通道的设备（如：外置 USB 麦克风、摄像头内置麦克风、笔记本内置麦克风）。
-   * 在右侧面板提供下拉菜单，显示“设备索引 + 设备名称”，用户可自由切换录音设备。
-   * 切换时自动重启录音流，立即生效。
-
-2. **语音能量阈值（简单去噪 + 静音检测）：**
-
-   * 每一块音频计算 RMS（均方根能量），低于设定阈值时认为是“环境静音/噪音”，**不会送入 STT**，避免无意义的识别。
-   * 提供滑条 + 文本框设置范围 **0.001～0.1**：
-
-     * 数值越小，越容易触发识别（对小声也敏感）；
-     * 数值越大，只有明显的语音才能触发识别，更适合噪音环境。
-
-### 6. UI 设计与无障碍友好
-
-使用 PyQt5 搭建桌面应用界面，主要特点：
-
-* 左侧为摄像头实时画面，叠加显示关键点、嘴巴状态、控制是否启用等信息。
-* 右侧为控制面板，包含：
-
-  * 启用/停用脸控鼠标控制（复选框，支持 Ctrl 热键和语音控制）
-  * 语言选择（中文/English）
-  * 麦克风选择（可列出当前所有输入设备）
-  * Whisper 模型选择及切换按钮
-  * 鼠标灵敏度（alpha）滑条 + 输入框
-  * 语音能量阈值滑条 + 输入框
-  * “窗口置顶”选项：让 UI 始终显示在其他窗口前面，方便监控状态
-  * 语音识别状态显示（等待说话 / 正在识别）
-  * 识别文本展示框，以及“清空文本”按钮
-  * “设置当前头部姿势为屏幕中心”按钮，帮助用户校准舒适姿势
-
-界面整体简洁直观，大部分功能用勾选框和滑条控制，适合认知负担较低的用户群体。
+- 🎯 **Subtle Head-Motion Tracking**: Maps nose-tip coordinates to screen pixel positions with customizable gain multipliers, allowing minimal head movements to span ultra-wide monitors without causing neck strain.
+- 🪑 **One-Click Natural Posture Calibration**: Sets the user's current head position as the screen center with a single click, accommodating ergonomic sitting angles and non-standard postures.
+- 🌊 **Adaptive Low-Pass Damping Filter**: Emphasizes cursor stability using a first-order low-pass filter ($\alpha = 0.001 - 0.99$) that eliminates tremor jitter while maintaining responsive tracking.
+- 👄 **Duration-Based Mouth Click Triggering**:
+  - *Brief mouth opening ($< 1.0\text{ s}$)*: Triggers a standard Left Click for selection and navigation.
+  - *Sustained mouth opening ($\ge 2.0\text{ s}$)*: Triggers a Right Click for context menus.
+  - Anti-chatter debounce intervals prevent accidental repetitive triggering.
+- 🎙️ **Local Offline Whisper Dictation**: Integrates OpenAI Whisper (`tiny`, `base`, `small`, `medium`) for offline speech-to-text dictation across English and Chinese without cloud latency or subscription paywalls.
+- 🗣️ **Spoken Execution Commands**:
+  - Say *"Pause"* / *"Stop"* (or *"暂停"* / *"停止"*): Suspends facial tracking.
+  - Say *"Resume"* / *"Start"* (or *"开始"* / *"继续"*): Re-engages facial tracking.
+- 🎚️ **Input Device Routing & Noise Gating**: Enumerates all hardware audio input channels (USB mics, headset mics, webcam mics) and provides an RMS energy threshold filter to eliminate ambient noise before transcription.
+- 🖥️ **Accessible PyQt5 Interface**: Features high-contrast camera monitoring, real-time landmark overlays, status badges, and an Always-On-Top viewing mode.
 
 ---
 
-## 五、技术实现与框架组合
+## Cursor Tracking & Interaction Mechanics
 
-1. **编程语言：** Python 3
-2. **界面框架：** PyQt5
-3. **计算机视觉：**
+### 1. Nose-Tip Coordinate Mapping
 
-   * OpenCV 用于摄像头采集和图像显示
-   * MediaPipe Face Mesh 用于高精度人脸关键点检测与跟踪
-4. **鼠标控制：** pyautogui
-5. **语音采集：** sounddevice（支持多设备、低延迟流式输入）
-6. **语音识别：** openai-whisper（支持多模型与多语言）
-7. **文本输入：**
+The system tracks landmark `#4` (nose tip) across consecutive camera frames. An adjustable gain amplifier scales spatial displacements relative to the calibrated center point:
 
-   * pyautogui 模拟键盘
-   * 或结合剪贴板实现粘贴式输入，避免输入法干扰
-8. **信号处理：**
+$$X_{\text{screen}} = \text{Screen Width} \times \left(0.5 + \text{Gain} \times \frac{x_{\text{nose}} - x_{\text{center}}}{\text{Frame Width}}\right)$$
 
-   * 一阶低通滤波（阻尼滤波器）对鼠标位置平滑
-   * RMS 能量检测实现简单语音门限
-9. **多线程 / 多进程：**
+$$Y_{\text{screen}} = \text{Screen Height} \times \left(0.5 + \text{Gain} \times \frac{y_{\text{nose}} - y_{\text{center}}}{\text{Frame Height}}\right)$$
 
-   * 使用 Qt 的 QThread 运行 Whisper STT
-   * 主线程负责 UI 与摄像头刷新，保持界面响应流畅
+### 2. Low-Pass Damping Filter
+
+To balance cursor stability against responsiveness, filtered screen coordinates are updated per frame using damping factor $\alpha$:
+
+$$\mathbf{P}_{\text{filtered}}(t) = \alpha \cdot \mathbf{P}_{\text{raw}}(t) + (1 - \alpha) \cdot \mathbf{P}_{\text{filtered}}(t - 1)$$
+
+- Lower values ($\alpha \approx 0.05 - 0.2$): Maximize smoothness, ideal for users with motor tremors.
+- Higher values ($\alpha \approx 0.5 - 0.9$): Maximize tracking immediacy for rapid navigation.
+
+### 3. Vertical Mouth Aperture Analysis
+
+Aperture is calculated from the Euclidean distance between upper lip landmark `#13` and lower lip landmark `#14`, normalized against facial height (distance between forehead landmark `#10` and chin landmark `#152`):
+
+$$\text{Aperture Ratio} = \frac{\|\mathbf{p}_{13} - \mathbf{p}_{14}\|}{\|\mathbf{p}_{10} - \mathbf{p}_{152}\|}$$
+
+When this ratio exceeds the configured trigger threshold, an internal timer initiates:
+- Release within $< 1.0\text{ s}$ $\longrightarrow$ `pyautogui.click(button='left')`
+- Sustained for $\ge 2.0\text{ s}$ $\longrightarrow$ `pyautogui.click(button='right')`
 
 ---
 
-## 六、创新亮点与优势
+## Voice Control & Whisper STT
 
-1. **纯软件实现、硬件门槛极低**
+```text
+Microphone Stream (sounddevice)
+         │
+         ▼
+[RMS Energy Gate] ──► Discards silent buffers (< Threshold)
+         │
+         ▼
+[Circular Audio Buffer]
+         │
+         ▼
+[QThread Background Worker]
+         │
+         ├──► Whisper Local Model Inference
+         │
+         ├──► System Commands Check:
+         │      ├── "Pause" / "Stop"   ──► Disable face cursor
+         │      └── "Resume" / "Start" ──► Re-enable face cursor
+         │
+         └──► Dictation Routing:
+                ├── UI Output Box display
+                └── Keyboard typing / Clipboard paste at active cursor
+```
 
-   * 只需要普通 USB 摄像头 + 麦克风即可实现“脸控 + 语音”完整交互系统。
-   * 无需购买昂贵的眼控仪或专业辅助器具，易于推广。
+---
 
-2. **可校准的“舒适姿势居中”机制**
+## Technical Architecture
 
-   * 用户可以任意选择一个自然的头部姿势作为坐姿零点，不必刻意端坐。
-   * 对于长期使用电脑的无障碍用户来说，大大减轻颈部疲劳。
+- **Primary Runtime**: Python 3.9+
+- **Desktop Graphical Interface**: PyQt5
+- **Computer Vision**: OpenCV (video capture & drawing), MediaPipe (468-point Face Mesh)
+- **Mouse & Keyboard Synthesis**: `pyautogui`, `pyperclip`
+- **Audio Capture**: `sounddevice`, `numpy`
+- **Speech-to-Text Engine**: `openai-whisper`, `torch`
+- **Concurrency**: Qt Event Loop with dedicated worker threads (`QThread`) isolating Whisper inference from real-time 30 FPS camera rendering
 
-3. **基于嘴巴开合时间的左右键区分**
+---
 
-   * 利用短开合与长时间保持张开区分左键/右键，动作自然、易记、不容易误触。
+## Getting Started
 
-4. **可调灵敏度 + 鼠标增益**
+### Prerequisites
 
-   * 将“平滑程度”和“移动范围”两个维度拆开调节，方便不同用户根据自身能力精细调节。
+- Windows 10/11, macOS, or Linux
+- Python 3.9, 3.10, or 3.11
+- Standard webcam and microphone
 
-5. **中英文一体的语音交互**
+### Installation
 
-   * UI 与 STT 语言联动，适合中英文用户同时使用，适配国际化背景下的无障碍需求。
+```bash
+# Clone the repository
+git clone https://github.com/Karl-XZ/Face-Control.git
+cd Face-Control
 
-6. **麦克风选择 + 噪声门限**
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 
-   * 面向真实使用环境考虑：不同设备、不同房间噪声水平均可通过参数调节达到较好效果，减少误识别。
+# Install dependencies
+pip install opencv-python mediapipe PyQt5 pyautogui pyperclip sounddevice numpy openai-whisper torch
+```
 
+### Launching the Application
 
+```bash
+python face_mouse.py
+```
+
+---
+
+## Configuration Guide
+
+| UI Parameter | Adjustment Method | Recommended Setting | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Smoothing Alpha** | Slider + Text Box ($0.001 - 0.99$) | $0.15 - 0.30$ | Balances cursor smoothness against movement responsiveness. |
+| **Cursor Gain** | Configuration Setting | $1.5 - 2.5$ | Amplifies head movement range to cover wide monitors. |
+| **Center Pose** | Button (`Set Current Pose`) | Trigger at natural seating posture | Calibrates origin coordinates to eliminate neck fatigue. |
+| **Audio Threshold** | Slider ($0.001 - 0.100$) | $0.015 - 0.030$ | Gating threshold preventing background noise from triggering STT. |
+| **Microphone Channel** | Dropdown Selector | Dedicated USB Mic | Selects active hardware input device with immediate stream restart. |
+| **Whisper Model** | Dropdown (`tiny` to `medium`) | `base` or `small` | Balances transcription accuracy against local GPU/CPU inference speed. |
+| **Always on Top** | Checkbox Toggle | Enabled | Keeps camera view and status monitor visible over active application windows. |
+
+---
+
+## Accessibility Design Principles
+
+1. **Zero Specialized Hardware Overhead**: Standard consumer webcams replace expensive proprietary eye trackers.
+2. **Posture-Agnostic Operation**: The one-tap center calibration accommodates natural body positions, wheelchair recline angles, and asymmetric seating.
+3. **Dual Confirmation Channels**: Clear visual feedback indicators (`Listening`, `Tracking Active`, `Paused`) ensure predictable interactions.
+4. **Bilingual Accessibility**: Synchronized interface and language models support native English and Chinese workflows.
